@@ -3,7 +3,7 @@ import { clerkClient } from "@clerk/express";
 
 // Middleware to check if user is authenticated
 export const protect = async (req, res, next) => {
-  const { userId } = req.auth;
+  const { userId } = req.auth();
   if (!userId) {
     return res
       .status(401)

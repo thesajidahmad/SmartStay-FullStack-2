@@ -6,8 +6,11 @@ import { v2 as cloudinary } from "cloudinary";
 export const createRoom = async (req, res) => {
   try {
     const { roomType, pricePerNight, pricePerHour, amenities } = req.body;
-    const hotel = await Hotel.findOne({ owner: req.auth.userId });
-    if (!hotel) return res.status(404).json({ success: false, message: "No hotel found" });
+    const hotel = await Hotel.findOne({ owner: req.auth().userId });
+    if (!hotel)
+      return res
+        .status(404)
+        .json({ success: false, message: "No hotel found" });
 
     const uploadImages = req.files.map(async (file) => {
       const response = await cloudinary.uploader.upload(file.path);
@@ -45,8 +48,11 @@ export const getRooms = async (req, res) => {
 // GET /api/rooms/owner
 export const getOwnerRooms = async (req, res) => {
   try {
-    const hotelData = await Hotel.findOne({ owner: req.auth.userId });
-    if (!hotelData) return res.status(404).json({ success: false, message: "No hotel found" });
+    const hotelData = await Hotel.findOne({ owner: req.auth().userId });
+    if (!hotelData)
+      return res
+        .status(404)
+        .json({ success: false, message: "No hotel found" });
     const rooms = await Room.find({ hotel: hotelData._id }).populate("hotel");
     res.json({ success: true, rooms });
   } catch (error) {
@@ -59,10 +65,13 @@ export const toggleRoomAvailability = async (req, res) => {
   try {
     const { roomId } = req.body;
     const roomData = await Room.findById(roomId).populate("hotel");
-    if (!roomData) return res.status(404).json({ success: false, message: "Room not found" });
+    if (!roomData)
+      return res
+        .status(404)
+        .json({ success: false, message: "Room not found" });
 
     // Security: only the owning hotel's owner may toggle
-    if (roomData.hotel.owner.toString() !== req.auth.userId) {
+    if (roomData.hotel.owner.toString() !== req.auth().userId) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
 

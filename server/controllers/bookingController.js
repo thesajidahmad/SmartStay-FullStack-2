@@ -19,7 +19,11 @@ const checkAvailability = async ({ checkInDate, checkOutDate, room }) => {
 export const checkAvailabilityAPI = async (req, res) => {
   try {
     const { room, checkInDate, checkOutDate } = req.body;
-    const isAvailable = await checkAvailability({ checkInDate, checkOutDate, room });
+    const isAvailable = await checkAvailability({
+      checkInDate,
+      checkOutDate,
+      room,
+    });
     res.json({ success: true, isAvailable });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -29,12 +33,27 @@ export const checkAvailabilityAPI = async (req, res) => {
 // POST /api/bookings/book
 export const createBooking = async (req, res) => {
   try {
-    const { room, checkInDate, checkOutDate, guests, bookingType, checkInTime, checkOutTime, promoCode } = req.body;
+    const {
+      room,
+      checkInDate,
+      checkOutDate,
+      guests,
+      bookingType,
+      checkInTime,
+      checkOutTime,
+      promoCode,
+    } = req.body;
     const user = req.user._id;
 
-    const isAvailable = await checkAvailability({ checkInDate, checkOutDate, room });
+    const isAvailable = await checkAvailability({
+      checkInDate,
+      checkOutDate,
+      room,
+    });
     if (!isAvailable)
-      return res.status(400).json({ success: false, message: "Room is not available" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Room is not available" });
 
     const roomData = await Room.findById(room).populate("hotel");
     let totalPrice;
@@ -42,23 +61,41 @@ export const createBooking = async (req, res) => {
     if (bookingType === "hourly") {
       const [inH, inM] = checkInTime.split(":").map(Number);
       const [outH, outM] = checkOutTime.split(":").map(Number);
-      const totalMinutes = (outH * 60 + outM) - (inH * 60 + inM);
+      const totalMinutes = outH * 60 + outM - (inH * 60 + inM);
       if (totalMinutes <= 0)
-        return res.status(400).json({ success: false, message: "Check-out time must be after check-in time" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "Check-out time must be after check-in time",
+          });
       if (!roomData.pricePerHour)
-        return res.status(400).json({ success: false, message: "This room does not support hourly booking" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "This room does not support hourly booking",
+          });
       totalPrice = roomData.pricePerHour * Math.ceil(totalMinutes / 60);
     } else {
-      const nights = Math.ceil((new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 3600 * 24));
+      const nights = Math.ceil(
+        (new Date(checkOutDate) - new Date(checkInDate)) / (1000 * 3600 * 24),
+      );
       totalPrice = roomData.pricePerNight * nights;
     }
 
     // Apply promo if provided
     let discountApplied = 0;
     if (promoCode) {
-      const promo = await Promo.findOne({ code: promoCode.toUpperCase().trim(), isActive: true });
-      if (promo && (!promo.expiresAt || new Date() <= promo.expiresAt) &&
-          (promo.maxUses === null || promo.usedCount < promo.maxUses)) {
+      const promo = await Promo.findOne({
+        code: promoCode.toUpperCase().trim(),
+        isActive: true,
+      });
+      if (
+        promo &&
+        (!promo.expiresAt || new Date() <= promo.expiresAt) &&
+        (promo.maxUses === null || promo.usedCount < promo.maxUses)
+      ) {
         discountApplied = promo.discountPercent;
         totalPrice = Math.round(totalPrice * (1 - discountApplied / 100));
         await Promo.findByIdAndUpdate(promo._id, { $inc: { usedCount: 1 } });
@@ -66,20 +103,23 @@ export const createBooking = async (req, res) => {
     }
 
     const booking = await Booking.create({
-      user, room,
+      user,
+      room,
       hotel: roomData.hotel._id,
       guests: +guests,
       bookingType: bookingType || "nightly",
-      checkInDate, checkOutDate,
+      checkInDate,
+      checkOutDate,
       checkInTime: checkInTime || null,
       checkOutTime: checkOutTime || null,
       totalPrice,
       discountApplied,
     });
 
-    const durationLabel = bookingType === "hourly"
-      ? `${checkInTime} – ${checkOutTime}`
-      : `${new Date(checkInDate).toDateString()} → ${new Date(checkOutDate).toDateString()}`;
+    const durationLabel =
+      bookingType === "hourly"
+        ? `${checkInTime} – ${checkOutTime}`
+        : `${new Date(checkInDate).toDateString()} → ${new Date(checkOutDate).toDateString()}`;
 
     try {
       await transporter.sendMail({
@@ -98,12 +138,16 @@ export const createBooking = async (req, res) => {
             <li><strong>Total:</strong> ${process.env.VITE_CURRENCY || "₹"}${booking.totalPrice}</li>
           </ul>`,
       });
-    } catch (_) { /* email failure should not block booking */ }
+    } catch (_) {
+      /* email failure should not block booking */
+    }
 
     res.json({ success: true, message: "Booking created successfully" });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ success: false, message: "Failed to create booking" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to create booking" });
   }
 };
 
@@ -115,7 +159,9 @@ export const getUserBookings = async (req, res) => {
       .sort({ createdAt: -1 });
     res.json({ success: true, bookings });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to fetch bookings" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch bookings" });
   }
 };
 
@@ -123,15 +169,24 @@ export const getUserBookings = async (req, res) => {
 export const cancelBooking = async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    if (!booking)
+      return res
+        .status(404)
+        .json({ success: false, message: "Booking not found" });
     if (booking.user.toString() !== req.user._id.toString())
-      return res.status(403).json({ success: false, message: "Not your booking" });
+      return res
+        .status(403)
+        .json({ success: false, message: "Not your booking" });
     if (booking.status === "cancelled")
-      return res.status(400).json({ success: false, message: "Already cancelled" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Already cancelled" });
 
     // Only allow cancellation before check-in
     if (new Date(booking.checkInDate) <= new Date())
-      return res.status(400).json({ success: false, message: "Cannot cancel after check-in date" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Cannot cancel after check-in date" });
 
     booking.status = "cancelled";
     await booking.save();
@@ -144,16 +199,28 @@ export const cancelBooking = async (req, res) => {
 // GET /api/bookings/hotel
 export const getHotelBookings = async (req, res) => {
   try {
-    const hotel = await Hotel.findOne({ owner: req.auth.userId });
-    if (!hotel) return res.status(404).json({ success: false, message: "No hotel found" });
+    const hotel = await Hotel.findOne({ owner: req.auth().userId });
+    if (!hotel)
+      return res
+        .status(404)
+        .json({ success: false, message: "No hotel found" });
     const bookings = await Booking.find({ hotel: hotel._id })
       .populate("room hotel user")
       .sort({ createdAt: -1 });
-    const totalBookings = bookings.filter(b => b.status !== "cancelled").length;
-    const totalRevenue = bookings.filter(b => b.isPaid).reduce((acc, b) => acc + b.totalPrice, 0);
-    res.json({ success: true, dashboardData: { totalBookings, totalRevenue, bookings } });
+    const totalBookings = bookings.filter(
+      (b) => b.status !== "cancelled",
+    ).length;
+    const totalRevenue = bookings
+      .filter((b) => b.isPaid)
+      .reduce((acc, b) => acc + b.totalPrice, 0);
+    res.json({
+      success: true,
+      dashboardData: { totalBookings, totalRevenue, bookings },
+    });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Failed to fetch bookings" });
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch bookings" });
   }
 };
 
@@ -166,14 +233,16 @@ export const stripePayment = async (req, res) => {
     const { origin } = req.headers;
     const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
     const session = await stripeInstance.checkout.sessions.create({
-      line_items: [{
-        price_data: {
-          currency: "inr",
-          product_data: { name: roomData.hotel.name },
-          unit_amount: booking.totalPrice * 100,
+      line_items: [
+        {
+          price_data: {
+            currency: "inr",
+            product_data: { name: roomData.hotel.name },
+            unit_amount: booking.totalPrice * 100,
+          },
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+      ],
       mode: "payment",
       success_url: `${origin}/loader/my-bookings`,
       cancel_url: `${origin}/my-bookings`,
